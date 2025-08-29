@@ -4,28 +4,44 @@ import os
 import numpy as np
 import pickle
 
+# Flask app, explicitly pointing to "template" folder
 app = Flask(__name__, template_folder='template')
+
+# Base directory of this file
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Paths to model and scaler
+scaler_path = os.path.join(BASE_DIR, 'Models', 'scaler.pkl')
+model_path = os.path.join(BASE_DIR, 'Models', 'dt.sav')
+
+# Load scaler and model once at startup
+with open(scaler_path, 'rb') as f:
+    scaler = pickle.load(f)
+
+dt = joblib.load(model_path)
+
 
 @app.route("/")
 def index():
     return render_template("home.html")
 
+
 @app.route('/about')
 def about():
-    return render_template('about.html') 
+    return render_template('about.html')
+
 
 @app.route("/result", methods=['POST', 'GET'])
 def result():
     try:
-        # Correct the handling of gender input
+        # Get and validate gender
         gender_str = request.form['gender'].lower()
         if gender_str not in ['male', 'female']:
             raise ValueError("Invalid gender value")
 
-        # Convert gender to numeric value if needed
         gender = 1 if gender_str == 'male' else 0
 
-        # Remaining input processing code...
+        # Collect inputs
         age = int(request.form['age'])
         hypertension = int(request.form['hypertension'])
         heart_disease = int(request.form['heart_disease'])
@@ -36,22 +52,18 @@ def result():
         bmi = float(request.form['bmi'])
         smoking_status = int(request.form['smoking_status'])
 
-        x = np.array([gender, age, hypertension, heart_disease, ever_married, work_type, Residence_type,
-                      avg_glucose_level, bmi, smoking_status]).reshape(1, -1)
+        # Create input array
+        x = np.array([gender, age, hypertension, heart_disease, ever_married,
+                      work_type, Residence_type, avg_glucose_level, bmi,
+                      smoking_status]).reshape(1, -1)
 
-        scaler_path = os.path.join(r'C:\Users\prana\OneDrive\Desktop\Stroke Probability Detector\Models\scaler.pkl')
-        scaler = None
-        with open(scaler_path, 'rb') as scaler_file:
-            scaler = pickle.load(scaler_file)
-
+        # Scale inputs
         x = scaler.transform(x)
 
-        model_path = os.path.join(r'C:\Users\prana\OneDrive\Desktop\Stroke Probability Detector\Models\dt.sav')
-        dt = joblib.load(model_path)
-
+        # Predict
         Y_pred = dt.predict(x)
 
-        # for No Stroke Risk
+        # Render result page
         if Y_pred == 0:
             return render_template('nostroke.html')
         else:
@@ -59,9 +71,10 @@ def result():
 
     except ValueError as e:
         return render_template('error.html', message=str(e))
+    except Exception as e:
+        return render_template('error.html', message=f"Unexpected error: {str(e)}")
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # Use Render's port or default 5000
     app.run(host="0.0.0.0", port=port, debug=True)
-
